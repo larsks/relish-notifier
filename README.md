@@ -40,3 +40,19 @@ Type "help", "copyright", "credits" or "license" for more information.
 >>> keyring.set_password("relish-notifier", "PASSWORD", "<your password>")
 >>> exit()
 ```
+
+## Installation
+
+Here's how I install it:
+
+1. Clone this repository.
+
+2. From inside the repository:
+
+    ```
+    pipx install .
+    ```
+
+If you're not using [pipx], you should be.
+
+[pipx]: https://github.com/pypa/pipx

@@ -1,3 +1,0 @@
-selenium
-selenium-stealth
-keyring

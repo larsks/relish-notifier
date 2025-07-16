@@ -1,0 +1,17 @@
+[project]
+name = "relish-notifier"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+  "keyring>=25.6.0",
+  "selenium>=4.34.2",
+  "selenium-stealth>=1.0.6",
+]
+
+[project.scripts]
+relish-notifier = "relish_notifier:main"
+
+[tool.uv]
+package = true
