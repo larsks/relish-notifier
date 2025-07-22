@@ -16,6 +16,11 @@ build: $(BINARY_NAME)
 $(BINARY_NAME): $(GO_SOURCES) $(GO_MOD_FILES)
 	go build $(LDFLAGS) -o $@
 
+# Build for different architectures
+.PHONY: build-rpi
+build-rpi:
+	GOOS=linux GOARCH=arm GOARM=7 go build $(LDFLAGS) -o $(BINARY_NAME)-rpi .
+
 # Development targets
 .PHONY: fmt
 fmt:
@@ -92,6 +97,7 @@ run-once: build
 help:
 	@echo "Available targets:"
 	@echo "  build        Build the binary"
+	@echo "  build-rpi    Build for Raspberry Pi (ARM v7)"
 	@echo "  fmt          Format Go code"
 	@echo "  vet          Run go vet"
 	@echo "  tidy         Tidy go modules"
