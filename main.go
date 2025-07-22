@@ -123,7 +123,7 @@ func (n *Notifier) Close() {
 }
 
 func (n *Notifier) Login() error {
-	n.logger.Debug("logging in")
+	n.logger.Info("logging in")
 
 	if err := n.page.Navigate(n.loginUrl); err != nil {
 		return fmt.Errorf("failed to navigate to login page: %w", err)
@@ -193,7 +193,7 @@ func (n *Notifier) Refresh() error {
 
 func getCredentials() (*Credentials, error) {
 	var username, password string
-	
+
 	// Try keyring first
 	username, err := keyring.Get("relish-notifier", "EMAIL")
 	if err != nil {
@@ -318,7 +318,7 @@ func runNotifier(config *Config) error {
 		if err != nil {
 			logger.Error("failed to check order status", "error", err)
 		} else {
-			logger.Debug("notifier reports status", "status", status)
+			logger.Info("notifier reports status", "status", status)
 
 			if status == OrderStatusArrived {
 				fmt.Println("order has arrived")
