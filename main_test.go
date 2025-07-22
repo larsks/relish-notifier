@@ -19,6 +19,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"strings"
@@ -77,7 +78,7 @@ var _ = Describe("Logger Setup", func() {
 				func(verbose int, expectedLevel slog.Level) {
 					logger := setupLogger(verbose)
 					Expect(logger).NotTo(BeNil())
-					Expect(logger.Enabled(nil, expectedLevel)).To(BeTrue())
+					Expect(logger.Enabled(context.TODO(), expectedLevel)).To(BeTrue())
 				},
 				Entry("default (0): warn level", 0, slog.LevelWarn),
 				Entry("-v (1): info level", 1, slog.LevelInfo),
@@ -90,25 +91,25 @@ var _ = Describe("Logger Setup", func() {
 		Context("with level filtering", func() {
 			It("should filter debug messages at warn level (default)", func() {
 				logger := setupLogger(0)
-				Expect(logger.Enabled(nil, slog.LevelWarn)).To(BeTrue())
-				Expect(logger.Enabled(nil, slog.LevelDebug)).To(BeFalse())
-				Expect(logger.Enabled(nil, slog.LevelInfo)).To(BeFalse())
+				Expect(logger.Enabled(context.TODO(), slog.LevelWarn)).To(BeTrue())
+				Expect(logger.Enabled(context.TODO(), slog.LevelDebug)).To(BeFalse())
+				Expect(logger.Enabled(context.TODO(), slog.LevelInfo)).To(BeFalse())
 			})
 
 			It("should allow info and above at info level (-v)", func() {
 				logger := setupLogger(1)
-				Expect(logger.Enabled(nil, slog.LevelInfo)).To(BeTrue())
-				Expect(logger.Enabled(nil, slog.LevelWarn)).To(BeTrue())
-				Expect(logger.Enabled(nil, slog.LevelError)).To(BeTrue())
-				Expect(logger.Enabled(nil, slog.LevelDebug)).To(BeFalse())
+				Expect(logger.Enabled(context.TODO(), slog.LevelInfo)).To(BeTrue())
+				Expect(logger.Enabled(context.TODO(), slog.LevelWarn)).To(BeTrue())
+				Expect(logger.Enabled(context.TODO(), slog.LevelError)).To(BeTrue())
+				Expect(logger.Enabled(context.TODO(), slog.LevelDebug)).To(BeFalse())
 			})
 
 			It("should allow all levels at debug level (-vv)", func() {
 				logger := setupLogger(2)
-				Expect(logger.Enabled(nil, slog.LevelDebug)).To(BeTrue())
-				Expect(logger.Enabled(nil, slog.LevelInfo)).To(BeTrue())
-				Expect(logger.Enabled(nil, slog.LevelWarn)).To(BeTrue())
-				Expect(logger.Enabled(nil, slog.LevelError)).To(BeTrue())
+				Expect(logger.Enabled(context.TODO(), slog.LevelDebug)).To(BeTrue())
+				Expect(logger.Enabled(context.TODO(), slog.LevelInfo)).To(BeTrue())
+				Expect(logger.Enabled(context.TODO(), slog.LevelWarn)).To(BeTrue())
+				Expect(logger.Enabled(context.TODO(), slog.LevelError)).To(BeTrue())
 			})
 		})
 
@@ -122,8 +123,8 @@ var _ = Describe("Logger Setup", func() {
 			// Note: This is a simplified test since we can't easily redirect slog output
 			// In a real scenario, you might use a custom handler for testing
 			Expect(logger).NotTo(BeNil())
-			Expect(logger.Enabled(nil, slog.LevelInfo)).To(BeTrue())
-			Expect(logger.Enabled(nil, slog.LevelDebug)).To(BeFalse())
+			Expect(logger.Enabled(context.TODO(), slog.LevelInfo)).To(BeTrue())
+			Expect(logger.Enabled(context.TODO(), slog.LevelDebug)).To(BeFalse())
 
 			_ = buffer // Prevent unused variable error
 		})
@@ -251,9 +252,9 @@ var _ = Describe("Application Integration", func() {
 		})
 
 		AfterEach(func() {
-			w.Close()
+			w.Close() //nolint:errcheck
 			os.Stderr = originalStderr
-			r.Close()
+			r.Close() //nolint:errcheck
 		})
 
 		It("should log at the correct level", func() {
@@ -266,7 +267,7 @@ var _ = Describe("Application Integration", func() {
 			logger.Error("error message")  // Should appear
 
 			// Close writer and read output
-			w.Close()
+			w.Close() //nolint:errcheck
 
 			output := make([]byte, 2048)
 			n, err := r.Read(output)
@@ -297,14 +298,14 @@ var _ = Describe("Performance", func() {
 		// Warm up
 		for i := 0; i < 100; i++ {
 			testCase := testCases[i%len(testCases)]
-			textToStatus(testCase)
+			_ = textToStatus(testCase)
 		}
 
 		// Actual performance test
 		start := time.Now()
 		for i := 0; i < 1000; i++ {
 			testCase := testCases[i%len(testCases)]
-			textToStatus(testCase)
+			_ = textToStatus(testCase)
 		}
 		duration := time.Since(start)
 
@@ -353,22 +354,22 @@ var _ = Describe("Credentials Management", func() {
 		AfterEach(func() {
 			// Restore original environment variables
 			if originalUsername != "" {
-				os.Setenv("RELISH_USERNAME", originalUsername)
+				os.Setenv("RELISH_USERNAME", originalUsername) //nolint:errcheck
 			} else {
-				os.Unsetenv("RELISH_USERNAME")
+				os.Unsetenv("RELISH_USERNAME") //nolint:errcheck
 			}
 
 			if originalPassword != "" {
-				os.Setenv("RELISH_PASSWORD", originalPassword)
+				os.Setenv("RELISH_PASSWORD", originalPassword) //nolint:errcheck
 			} else {
-				os.Unsetenv("RELISH_PASSWORD")
+				os.Unsetenv("RELISH_PASSWORD") //nolint:errcheck
 			}
 		})
 
 		Context("when environment variables are set", func() {
 			BeforeEach(func() {
-				os.Setenv("RELISH_USERNAME", "envuser@example.com")
-				os.Setenv("RELISH_PASSWORD", "envpassword")
+				os.Setenv("RELISH_USERNAME", "envuser@example.com") //nolint:errcheck
+				os.Setenv("RELISH_PASSWORD", "envpassword")         //nolint:errcheck
 			})
 
 			It("should return credentials from environment when keyring fails", func() {
@@ -392,8 +393,8 @@ var _ = Describe("Credentials Management", func() {
 
 		Context("when environment variables are not set", func() {
 			BeforeEach(func() {
-				os.Unsetenv("RELISH_USERNAME")
-				os.Unsetenv("RELISH_PASSWORD")
+				os.Unsetenv("RELISH_USERNAME") //nolint:errcheck
+				os.Unsetenv("RELISH_PASSWORD") //nolint:errcheck
 			})
 
 			It("should return error with helpful message when both keyring and env vars fail", func() {
@@ -419,8 +420,8 @@ var _ = Describe("Credentials Management", func() {
 
 		Context("with partial environment variables", func() {
 			It("should fail when only username is set in environment", func() {
-				os.Setenv("RELISH_USERNAME", "partialuser@example.com")
-				os.Unsetenv("RELISH_PASSWORD")
+				os.Setenv("RELISH_USERNAME", "partialuser@example.com") //nolint:errcheck
+				os.Unsetenv("RELISH_PASSWORD")                          //nolint:errcheck
 
 				// This test behavior depends on keyring state
 				creds, err := getCredentials()
@@ -435,8 +436,8 @@ var _ = Describe("Credentials Management", func() {
 			})
 
 			It("should fail when only password is set in environment", func() {
-				os.Unsetenv("RELISH_USERNAME")
-				os.Setenv("RELISH_PASSWORD", "partialpassword")
+				os.Unsetenv("RELISH_USERNAME")                  //nolint:errcheck
+				os.Setenv("RELISH_PASSWORD", "partialpassword") //nolint:errcheck
 
 				// This test behavior depends on keyring state
 				creds, err := getCredentials()
@@ -477,15 +478,15 @@ var _ = Describe("Edge Cases and Error Handling", func() {
 			logger := setupLogger(999)
 			Expect(logger).NotTo(BeNil())
 			// Should still be debug level for any count >= 2
-			Expect(logger.Enabled(nil, slog.LevelDebug)).To(BeTrue())
+			Expect(logger.Enabled(context.TODO(), slog.LevelDebug)).To(BeTrue())
 		})
 
 		It("should handle negative verbose counts", func() {
 			logger := setupLogger(-1)
 			Expect(logger).NotTo(BeNil())
 			// Should default to warn level for negative values
-			Expect(logger.Enabled(nil, slog.LevelWarn)).To(BeTrue())
-			Expect(logger.Enabled(nil, slog.LevelInfo)).To(BeFalse())
+			Expect(logger.Enabled(context.TODO(), slog.LevelWarn)).To(BeTrue())
+			Expect(logger.Enabled(context.TODO(), slog.LevelInfo)).To(BeFalse())
 		})
 	})
 
