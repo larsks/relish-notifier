@@ -87,9 +87,8 @@ func (n *Notifier) initializeBrowser() error {
 
 	launcher := launcher.New()
 
-	if n.config.Headless {
-		launcher = launcher.Headless(true)
-	}
+	// Set headless mode explicitly (Rod defaults to headless=true)
+	launcher = launcher.Headless(n.config.Headless)
 
 	if !n.config.Extensions {
 		launcher = launcher.Set("disable-extensions")
