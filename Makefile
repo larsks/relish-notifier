@@ -7,7 +7,7 @@ BINARY_NAME=relish-notifier
 INSTALL_PREFIX?=/usr/local
 VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS=-ldflags "-X main.version=$(VERSION)"
-GOTEST?=go test -v
+GOTEST?=go run github.com/onsi/ginkgo/v2/ginkgo -v
 
 # Default target
 .PHONY: build
@@ -40,20 +40,20 @@ deps: $(GO_SOURCES) $(GO_MOD_FILES)
 # Testing
 .PHONY: test
 test:
-	$(GOTEST) ./...
+	$(GOTEST)
 
 .PHONY: test-short
 test-short:
-	go test -v -short ./...
+	go run github.com/onsi/ginkgo/v2/ginkgo -v --skip-package=integration
 
 .PHONY: test-cover
 test-cover:
-	$(GOTEST) -coverprofile=coverage.out ./...
+	go run github.com/onsi/ginkgo/v2/ginkgo -v --coverprofile=coverage.out
 	go tool cover -html=coverage.out -o coverage.html
 
 .PHONY: bench
 bench:
-	$(GOTEST) -bench=. -benchmem ./...
+	go run github.com/onsi/ginkgo/v2/ginkgo -v --focus="Performance"
 
 # Quality checks
 .PHONY: check

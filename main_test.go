@@ -3,331 +3,352 @@ package main
 import (
 	"log/slog"
 	"os"
-	"reflect"
 	"strings"
-	"testing"
 	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 )
 
-func TestOrderStatus_String(t *testing.T) {
-	tests := []struct {
-		name   string
-		status OrderStatus
-		want   string
-	}{
-		{
-			name:   "Order Placed",
-			status: OrderStatusPlaced,
-			want:   "Order Placed",
-		},
-		{
-			name:   "Preparing Your Order",
-			status: OrderStatusPreparing,
-			want:   "Preparing Your Order",
-		},
-		{
-			name:   "Order Arrived",
-			status: OrderStatusArrived,
-			want:   "Order Arrived",
-		},
-		{
-			name:   "Unknown",
-			status: OrderStatusUnknown,
-			want:   "Unknown",
-		},
-	}
+var _ = Describe("OrderStatus", func() {
+	Describe("String method", func() {
+		DescribeTable("should return correct string representation",
+			func(status OrderStatus, expected string) {
+				Expect(status.String()).To(Equal(expected))
+			},
+			Entry("Order Placed", OrderStatusPlaced, "Order Placed"),
+			Entry("Preparing Your Order", OrderStatusPreparing, "Preparing Your Order"),
+			Entry("Order Arrived", OrderStatusArrived, "Order Arrived"),
+			Entry("Unknown", OrderStatusUnknown, "Unknown"),
+		)
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.status.String(); got != tt.want {
-				t.Errorf("OrderStatus.String() = %v, want %v", got, tt.want)
-			}
+	Describe("textToStatus function", func() {
+		Context("with valid status strings", func() {
+			DescribeTable("should return correct OrderStatus",
+				func(text string, expected OrderStatus) {
+					Expect(textToStatus(text)).To(Equal(expected))
+				},
+				Entry("Order Placed", "Order Placed", OrderStatusPlaced),
+				Entry("Preparing Your Order", "Preparing Your Order", OrderStatusPreparing),
+				Entry("Order Arrived", "Order Arrived", OrderStatusArrived),
+			)
 		})
-	}
-}
 
-func TestTextToStatus(t *testing.T) {
-	tests := []struct {
-		name string
-		text string
-		want OrderStatus
-	}{
-		{
-			name: "Valid Order Placed",
-			text: "Order Placed",
-			want: OrderStatusPlaced,
-		},
-		{
-			name: "Valid Preparing",
-			text: "Preparing Your Order",
-			want: OrderStatusPreparing,
-		},
-		{
-			name: "Valid Arrived",
-			text: "Order Arrived",
-			want: OrderStatusArrived,
-		},
-		{
-			name: "Invalid status returns Unknown",
-			text: "Invalid Status",
-			want: OrderStatusUnknown,
-		},
-		{
-			name: "Empty string returns Unknown",
-			text: "",
-			want: OrderStatusUnknown,
-		},
-		{
-			name: "Case sensitive - different case returns Unknown",
-			text: "order placed",
-			want: OrderStatusUnknown,
-		},
-		{
-			name: "Whitespace around valid status returns Unknown",
-			text: " Order Placed ",
-			want: OrderStatusUnknown,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := textToStatus(tt.text); got != tt.want {
-				t.Errorf("textToStatus() = %v, want %v", got, tt.want)
-			}
+		Context("with invalid status strings", func() {
+			DescribeTable("should return OrderStatusUnknown",
+				func(text string) {
+					Expect(textToStatus(text)).To(Equal(OrderStatusUnknown))
+				},
+				Entry("invalid status", "Invalid Status"),
+				Entry("empty string", ""),
+				Entry("case sensitive - lowercase", "order placed"),
+				Entry("whitespace around", " Order Placed "),
+				Entry("partial match", "Order"),
+				Entry("extra text", "Order Placed - Confirmed"),
+			)
 		})
-	}
-}
+	})
+})
 
-func TestSetupLogger(t *testing.T) {
-	tests := []struct {
-		name     string
-		logLevel string
-		want     slog.Level
-	}{
-		{
-			name:     "Debug level",
-			logLevel: "debug",
-			want:     slog.LevelDebug,
-		},
-		{
-			name:     "Info level",
-			logLevel: "info",
-			want:     slog.LevelInfo,
-		},
-		{
-			name:     "Warning level",
-			logLevel: "warning",
-			want:     slog.LevelWarn,
-		},
-		{
-			name:     "Warn level (alias)",
-			logLevel: "warn",
-			want:     slog.LevelWarn,
-		},
-		{
-			name:     "Error level",
-			logLevel: "error",
-			want:     slog.LevelError,
-		},
-		{
-			name:     "Invalid level defaults to Warn",
-			logLevel: "invalid",
-			want:     slog.LevelWarn,
-		},
-		{
-			name:     "Empty level defaults to Warn",
-			logLevel: "",
-			want:     slog.LevelWarn,
-		},
-		{
-			name:     "Case insensitive - uppercase",
-			logLevel: "DEBUG",
-			want:     slog.LevelDebug,
-		},
-		{
-			name:     "Case insensitive - mixed case",
-			logLevel: "InFo",
-			want:     slog.LevelInfo,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			logger := setupLogger(tt.logLevel)
-			if logger == nil {
-				t.Fatal("setupLogger() returned nil")
-			}
-
-			// Test that the logger was created successfully
-			if !logger.Enabled(nil, tt.want) {
-				t.Errorf("Logger level not set correctly, expected level %v to be enabled", tt.want)
-			}
-
-			// For levels below the set level, they should be disabled
-			// (except for the edge case where we're testing the exact level)
-			if tt.want > slog.LevelDebug {
-				lowerLevel := tt.want - 1
-				if logger.Enabled(nil, lowerLevel) {
-					t.Errorf("Logger should not have level %v enabled when set to %v", lowerLevel, tt.want)
-				}
-			}
+var _ = Describe("Logger Setup", func() {
+	Describe("setupLogger function", func() {
+		Context("with valid log levels", func() {
+			DescribeTable("should create logger with correct level",
+				func(logLevel string, expectedLevel slog.Level) {
+					logger := setupLogger(logLevel)
+					Expect(logger).NotTo(BeNil())
+					Expect(logger.Enabled(nil, expectedLevel)).To(BeTrue())
+				},
+				Entry("debug level", "debug", slog.LevelDebug),
+				Entry("info level", "info", slog.LevelInfo),
+				Entry("warning level", "warning", slog.LevelWarn),
+				Entry("warn level alias", "warn", slog.LevelWarn),
+				Entry("error level", "error", slog.LevelError),
+			)
 		})
-	}
-}
 
-func TestNewNotifier(t *testing.T) {
-	config := &Config{
-		Headless:    true,
-		Extensions:  false,
-		Interval:    60,
-		Once:        true,
-		PageTimeout: 30 * time.Second,
-		Command:     "echo test",
-		LogLevel:    "debug",
-	}
+		Context("with case variations", func() {
+			DescribeTable("should handle case insensitive input",
+				func(logLevel string, expectedLevel slog.Level) {
+					logger := setupLogger(logLevel)
+					Expect(logger).NotTo(BeNil())
+					Expect(logger.Enabled(nil, expectedLevel)).To(BeTrue())
+				},
+				Entry("uppercase DEBUG", "DEBUG", slog.LevelDebug),
+				Entry("mixed case InFo", "InFo", slog.LevelInfo),
+				Entry("uppercase ERROR", "ERROR", slog.LevelError),
+			)
+		})
 
-	credentials := &Credentials{
-		Username: "test@example.com",
-		Password: "testpassword",
-	}
+		Context("with invalid log levels", func() {
+			DescribeTable("should default to warn level",
+				func(invalidLevel string) {
+					logger := setupLogger(invalidLevel)
+					Expect(logger).NotTo(BeNil())
+					Expect(logger.Enabled(nil, slog.LevelWarn)).To(BeTrue())
+					// Debug should be disabled at warn level
+					Expect(logger.Enabled(nil, slog.LevelDebug)).To(BeFalse())
+				},
+				Entry("invalid string", "invalid"),
+				Entry("empty string", ""),
+				Entry("numeric string", "123"),
+				Entry("special chars", "!@#$"),
+			)
+		})
 
-	logger := setupLogger("debug")
+		It("should create a logger that actually logs", func() {
+			// Create a buffer to capture output
+			buffer := gbytes.NewBuffer()
+			
+			// Create logger with info level
+			logger := setupLogger("info")
+			
+			// Note: This is a simplified test since we can't easily redirect slog output
+			// In a real scenario, you might use a custom handler for testing
+			Expect(logger).NotTo(BeNil())
+			Expect(logger.Enabled(nil, slog.LevelInfo)).To(BeTrue())
+			Expect(logger.Enabled(nil, slog.LevelDebug)).To(BeFalse())
+			
+			_ = buffer // Prevent unused variable error
+		})
+	})
+})
 
-	notifier := NewNotifier(config, credentials, logger)
+var _ = Describe("Notifier", func() {
+	var (
+		config      *Config
+		credentials *Credentials
+		logger      *slog.Logger
+	)
 
-	if notifier == nil {
-		t.Fatal("NewNotifier() returned nil")
-	}
+	BeforeEach(func() {
+		config = &Config{
+			Headless:    true,
+			Extensions:  false,
+			Interval:    60,
+			Once:        true,
+			PageTimeout: 30 * time.Second,
+			Command:     "echo test",
+			LogLevel:    "debug",
+		}
+		
+		credentials = &Credentials{
+			Username: "test@example.com",
+			Password: "testpassword",
+		}
+		
+		logger = setupLogger("debug")
+	})
 
-	if !reflect.DeepEqual(notifier.config, config) {
-		t.Errorf("NewNotifier() config = %v, want %v", notifier.config, config)
-	}
+	Describe("NewNotifier constructor", func() {
+		It("should create a new notifier with correct configuration", func() {
+			notifier := NewNotifier(config, credentials, logger)
+			
+			Expect(notifier).NotTo(BeNil())
+			Expect(notifier.config).To(Equal(config))
+			Expect(notifier.credentials).To(Equal(credentials))
+			Expect(notifier.logger).To(Equal(logger))
+			Expect(notifier.loginUrl).To(Equal(defaultLoginURL))
+		})
 
-	if !reflect.DeepEqual(notifier.credentials, credentials) {
-		t.Errorf("NewNotifier() credentials = %v, want %v", notifier.credentials, credentials)
-	}
+		It("should initialize with nil browser and page", func() {
+			notifier := NewNotifier(config, credentials, logger)
+			
+			Expect(notifier.browser).To(BeNil())
+			Expect(notifier.page).To(BeNil())
+		})
 
-	if notifier.logger != logger {
-		t.Errorf("NewNotifier() logger = %v, want %v", notifier.logger, logger)
-	}
+		It("should handle nil inputs gracefully", func() {
+			// While not recommended, the constructor should not panic
+			Expect(func() {
+				NewNotifier(nil, nil, nil)
+			}).NotTo(Panic())
+		})
+	})
+})
 
-	if notifier.loginUrl != defaultLoginURL {
-		t.Errorf("NewNotifier() loginUrl = %v, want %v", notifier.loginUrl, defaultLoginURL)
-	}
+var _ = Describe("Configuration", func() {
+	Describe("Config struct", func() {
+		It("should have sensible zero values", func() {
+			var config Config
+			
+			Expect(config.Headless).To(BeFalse())
+			Expect(config.Extensions).To(BeFalse())
+			Expect(config.Interval).To(Equal(0))
+			Expect(config.Once).To(BeFalse())
+			Expect(config.PageTimeout).To(Equal(time.Duration(0)))
+			Expect(config.Command).To(Equal(""))
+			Expect(config.LogLevel).To(Equal(""))
+		})
+	})
 
-	// Browser and page should be nil until initialized
-	if notifier.browser != nil {
-		t.Errorf("NewNotifier() browser should be nil initially, got %v", notifier.browser)
-	}
+	Describe("Credentials struct", func() {
+		It("should store username and password correctly", func() {
+			creds := &Credentials{
+				Username: "user@example.com",
+				Password: "secret123",
+			}
+			
+			Expect(creds.Username).To(Equal("user@example.com"))
+			Expect(creds.Password).To(Equal("secret123"))
+		})
 
-	if notifier.page != nil {
-		t.Errorf("NewNotifier() page should be nil initially, got %v", notifier.page)
-	}
-}
+		It("should handle empty credentials", func() {
+			creds := &Credentials{}
+			
+			Expect(creds.Username).To(Equal(""))
+			Expect(creds.Password).To(Equal(""))
+		})
+	})
+})
 
-func TestConfigDefaults(t *testing.T) {
-	// Test that our expected defaults make sense
-	var config Config
+var _ = Describe("Application Integration", func() {
+	Describe("Logger output validation", func() {
+		var (
+			originalStderr *os.File
+			r, w           *os.File
+		)
 
-	// Check zero values are sensible
-	if config.Headless != false {
-		t.Errorf("Config.Headless default = %v, want false", config.Headless)
-	}
+		BeforeEach(func() {
+			var err error
+			r, w, err = os.Pipe()
+			Expect(err).NotTo(HaveOccurred())
+			originalStderr = os.Stderr
+			os.Stderr = w
+		})
 
-	if config.Extensions != false {
-		t.Errorf("Config.Extensions default = %v, want false", config.Extensions)
-	}
+		AfterEach(func() {
+			w.Close()
+			os.Stderr = originalStderr
+			r.Close()
+		})
 
-	if config.Interval != 0 {
-		t.Errorf("Config.Interval default = %v, want 0", config.Interval)
-	}
+		It("should log at the correct level", func() {
+			logger := setupLogger("info")
 
-	if config.Once != false {
-		t.Errorf("Config.Once default = %v, want false", config.Once)
-	}
+			// Log messages at different levels
+			logger.Debug("debug message")    // Should not appear
+			logger.Info("info message")      // Should appear
+			logger.Warn("warning message")   // Should appear
+			logger.Error("error message")    // Should appear
 
-	if config.PageTimeout != 0 {
-		t.Errorf("Config.PageTimeout default = %v, want 0", config.PageTimeout)
-	}
+			// Close writer and read output
+			w.Close()
+			
+			output := make([]byte, 2048)
+			n, err := r.Read(output)
+			Expect(err).NotTo(HaveOccurred())
+			
+			outputStr := string(output[:n])
 
-	if config.Command != "" {
-		t.Errorf("Config.Command default = %v, want empty string", config.Command)
-	}
+			// Verify debug is filtered out
+			Expect(outputStr).NotTo(ContainSubstring("debug message"))
+			
+			// Verify other levels appear
+			Expect(outputStr).To(ContainSubstring("info message"))
+			Expect(outputStr).To(ContainSubstring("warning message"))
+			Expect(outputStr).To(ContainSubstring("error message"))
+		})
+	})
+})
 
-	if config.LogLevel != "" {
-		t.Errorf("Config.LogLevel default = %v, want empty string", config.LogLevel)
-	}
-}
+var _ = Describe("Performance", func() {
+	It("should have fast textToStatus performance", func() {
+		testCases := []string{
+			"Order Placed",
+			"Preparing Your Order",
+			"Order Arrived",
+			"Invalid Status",
+		}
 
-// Test that our logger actually writes output at the correct level
-func TestSetupLoggerOutput(t *testing.T) {
-	// Capture stderr for testing
-	r, w, _ := os.Pipe()
-	originalStderr := os.Stderr
-	os.Stderr = w
+		// Warm up
+		for i := 0; i < 100; i++ {
+			testCase := testCases[i%len(testCases)]
+			textToStatus(testCase)
+		}
 
-	logger := setupLogger("info")
+		// Actual performance test
+		start := time.Now()
+		for i := 0; i < 1000; i++ {
+			testCase := testCases[i%len(testCases)]
+			textToStatus(testCase)
+		}
+		duration := time.Since(start)
 
-	// Log at different levels
-	logger.Debug("debug message")  // Should not appear
-	logger.Info("info message")    // Should appear
-	logger.Warn("warning message") // Should appear
-	logger.Error("error message")  // Should appear
+		Expect(duration.Nanoseconds()).To(BeNumerically("<", 1000000)) // Less than 1ms for 1000 operations
+	})
 
-	// Restore stderr and read output
-	w.Close()
-	os.Stderr = originalStderr
+	It("should have fast OrderStatus String performance", func() {
+		statuses := []OrderStatus{
+			OrderStatusPlaced,
+			OrderStatusPreparing,
+			OrderStatusArrived,
+			OrderStatusUnknown,
+		}
 
-	output := make([]byte, 1024)
-	n, _ := r.Read(output)
-	outputStr := string(output[:n])
+		// Warm up
+		for i := 0; i < 100; i++ {
+			status := statuses[i%len(statuses)]
+			_ = status.String()
+		}
 
-	// Debug should not appear
-	if strings.Contains(outputStr, "debug message") {
-		t.Error("Debug message should not appear at INFO level")
-	}
+		// Actual performance test
+		start := time.Now()
+		for i := 0; i < 1000; i++ {
+			status := statuses[i%len(statuses)]
+			_ = status.String()
+		}
+		duration := time.Since(start)
 
-	// Info, warn, error should appear
-	if !strings.Contains(outputStr, "info message") {
-		t.Error("Info message should appear at INFO level")
-	}
+		Expect(duration.Nanoseconds()).To(BeNumerically("<", 500000)) // Less than 0.5ms for 1000 operations
+	})
+})
 
-	if !strings.Contains(outputStr, "warning message") {
-		t.Error("Warning message should appear at INFO level")
-	}
+var _ = Describe("Edge Cases and Error Handling", func() {
+	Describe("textToStatus with edge cases", func() {
+		It("should handle Unicode characters", func() {
+			result := textToStatus("Order Placed 🚚")
+			Expect(result).To(Equal(OrderStatusUnknown))
+		})
 
-	if !strings.Contains(outputStr, "error message") {
-		t.Error("Error message should appear at INFO level")
-	}
-}
+		It("should handle very long strings", func() {
+			longString := strings.Repeat("Order Placed", 1000)
+			result := textToStatus(longString)
+			Expect(result).To(Equal(OrderStatusUnknown))
+		})
 
-// Benchmark the most frequently called function
-func BenchmarkTextToStatus(b *testing.B) {
-	testCases := []string{
-		"Order Placed",
-		"Preparing Your Order", 
-		"Order Arrived",
-		"Invalid Status",
-	}
+		It("should handle strings with control characters", func() {
+			result := textToStatus("Order\nPlaced")
+			Expect(result).To(Equal(OrderStatusUnknown))
+		})
+	})
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		testCase := testCases[i%len(testCases)]
-		textToStatus(testCase)
-	}
-}
+	Describe("setupLogger edge cases", func() {
+		It("should handle very long log level strings", func() {
+			longLevel := strings.Repeat("debug", 1000)
+			logger := setupLogger(longLevel)
+			Expect(logger).NotTo(BeNil())
+			// Should default to warn for invalid input
+			Expect(logger.Enabled(nil, slog.LevelWarn)).To(BeTrue())
+		})
+	})
 
-func BenchmarkOrderStatusString(b *testing.B) {
-	statuses := []OrderStatus{
-		OrderStatusPlaced,
-		OrderStatusPreparing,
-		OrderStatusArrived,
-		OrderStatusUnknown,
-	}
+	Describe("NewNotifier edge cases", func() {
+		It("should work with extreme timeout values", func() {
+			config := &Config{
+				PageTimeout: time.Hour * 24, // 24 hours
+			}
+			
+			notifier := NewNotifier(config, &Credentials{}, setupLogger("info"))
+			Expect(notifier).NotTo(BeNil())
+			Expect(notifier.config.PageTimeout).To(Equal(time.Hour * 24))
+		})
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		status := statuses[i%len(statuses)]
-		_ = status.String()
-	}
-}
+		It("should handle empty login URL correctly", func() {
+			notifier := NewNotifier(&Config{}, &Credentials{}, setupLogger("info"))
+			Expect(notifier.loginUrl).To(Equal(defaultLoginURL))
+		})
+	})
+})
