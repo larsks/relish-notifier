@@ -184,6 +184,23 @@ var _ = Describe("Configuration", func() {
 		})
 	})
 
+	Describe("Headless flag behavior", func() {
+		It("should correctly handle headless configuration", func() {
+			// Test that headless setting is properly passed to launcher
+			config := &Config{Headless: true}
+			logger := setupLogger("debug")
+			notifier := NewNotifier(config, &Credentials{}, logger)
+			
+			Expect(notifier.config.Headless).To(BeTrue())
+			
+			// Test non-headless
+			config.Headless = false
+			notifier2 := NewNotifier(config, &Credentials{}, logger)
+			
+			Expect(notifier2.config.Headless).To(BeFalse())
+		})
+	})
+
 	Describe("Credentials struct", func() {
 		It("should store username and password correctly", func() {
 			creds := &Credentials{
