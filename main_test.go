@@ -1,3 +1,21 @@
+/*
+ *   relish-notifier -- get notified when your food arrives
+ *   Copyright (C) 2025 Lars Kellogg-Stedman
+ *
+ *   This program is free software: you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, either version 3 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 package main
 
 import (
@@ -97,16 +115,16 @@ var _ = Describe("Logger Setup", func() {
 		It("should create a logger that actually logs", func() {
 			// Create a buffer to capture output
 			buffer := gbytes.NewBuffer()
-			
+
 			// Create logger with info level (-v)
 			logger := setupLogger(1)
-			
+
 			// Note: This is a simplified test since we can't easily redirect slog output
 			// In a real scenario, you might use a custom handler for testing
 			Expect(logger).NotTo(BeNil())
 			Expect(logger.Enabled(nil, slog.LevelInfo)).To(BeTrue())
 			Expect(logger.Enabled(nil, slog.LevelDebug)).To(BeFalse())
-			
+
 			_ = buffer // Prevent unused variable error
 		})
 	})
@@ -129,19 +147,19 @@ var _ = Describe("Notifier", func() {
 			Command:     "echo test",
 			Verbose:     2, // -vv for debug level
 		}
-		
+
 		credentials = &Credentials{
 			Username: "test@example.com",
 			Password: "testpassword",
 		}
-		
+
 		logger = setupLogger(2) // -vv for debug level
 	})
 
 	Describe("NewNotifier constructor", func() {
 		It("should create a new notifier with correct configuration", func() {
 			notifier := NewNotifier(config, credentials, logger)
-			
+
 			Expect(notifier).NotTo(BeNil())
 			Expect(notifier.config).To(Equal(config))
 			Expect(notifier.credentials).To(Equal(credentials))
@@ -151,7 +169,7 @@ var _ = Describe("Notifier", func() {
 
 		It("should initialize with nil browser and page", func() {
 			notifier := NewNotifier(config, credentials, logger)
-			
+
 			Expect(notifier.browser).To(BeNil())
 			Expect(notifier.page).To(BeNil())
 		})
@@ -169,7 +187,7 @@ var _ = Describe("Configuration", func() {
 	Describe("Config struct", func() {
 		It("should have sensible zero values", func() {
 			var config Config
-			
+
 			Expect(config.Headless).To(BeFalse())
 			Expect(config.Extensions).To(BeFalse())
 			Expect(config.Interval).To(Equal(0))
@@ -186,13 +204,13 @@ var _ = Describe("Configuration", func() {
 			config := &Config{Headless: true}
 			logger := setupLogger(2) // -vv for debug level
 			notifier := NewNotifier(config, &Credentials{}, logger)
-			
+
 			Expect(notifier.config.Headless).To(BeTrue())
-			
+
 			// Test non-headless
 			config.Headless = false
 			notifier2 := NewNotifier(config, &Credentials{}, logger)
-			
+
 			Expect(notifier2.config.Headless).To(BeFalse())
 		})
 	})
@@ -203,14 +221,14 @@ var _ = Describe("Configuration", func() {
 				Username: "user@example.com",
 				Password: "secret123",
 			}
-			
+
 			Expect(creds.Username).To(Equal("user@example.com"))
 			Expect(creds.Password).To(Equal("secret123"))
 		})
 
 		It("should handle empty credentials", func() {
 			creds := &Credentials{}
-			
+
 			Expect(creds.Username).To(Equal(""))
 			Expect(creds.Password).To(Equal(""))
 		})
@@ -242,23 +260,23 @@ var _ = Describe("Application Integration", func() {
 			logger := setupLogger(1) // -v for info level
 
 			// Log messages at different levels
-			logger.Debug("debug message")    // Should not appear
-			logger.Info("info message")      // Should appear
-			logger.Warn("warning message")   // Should appear
-			logger.Error("error message")    // Should appear
+			logger.Debug("debug message")  // Should not appear
+			logger.Info("info message")    // Should appear
+			logger.Warn("warning message") // Should appear
+			logger.Error("error message")  // Should appear
 
 			// Close writer and read output
 			w.Close()
-			
+
 			output := make([]byte, 2048)
 			n, err := r.Read(output)
 			Expect(err).NotTo(HaveOccurred())
-			
+
 			outputStr := string(output[:n])
 
 			// Verify debug is filtered out
 			Expect(outputStr).NotTo(ContainSubstring("debug message"))
-			
+
 			// Verify other levels appear
 			Expect(outputStr).To(ContainSubstring("info message"))
 			Expect(outputStr).To(ContainSubstring("warning message"))
@@ -339,7 +357,7 @@ var _ = Describe("Credentials Management", func() {
 			} else {
 				os.Unsetenv("RELISH_USERNAME")
 			}
-			
+
 			if originalPassword != "" {
 				os.Setenv("RELISH_PASSWORD", originalPassword)
 			} else {
@@ -357,14 +375,14 @@ var _ = Describe("Credentials Management", func() {
 				// This test assumes keyring will fail for non-existent service
 				// If keyring succeeds, that's also fine - we're testing fallback behavior
 				creds, err := getCredentials()
-				
+
 				Expect(err).NotTo(HaveOccurred())
 				Expect(creds).NotTo(BeNil())
-				
+
 				// Should get either keyring or environment credentials
 				Expect(creds.Username).NotTo(BeEmpty())
 				Expect(creds.Password).NotTo(BeEmpty())
-				
+
 				// If environment fallback was used, should match our test values
 				if creds.Username == "envuser@example.com" {
 					Expect(creds.Password).To(Equal("envpassword"))
@@ -383,7 +401,7 @@ var _ = Describe("Credentials Management", func() {
 				// If keyring has valid credentials, the function will succeed
 				// If keyring fails and no env vars, it should fail with our message
 				creds, err := getCredentials()
-				
+
 				if err != nil {
 					// If it fails, should mention both keyring and environment variables
 					Expect(err.Error()).To(ContainSubstring("RELISH_USERNAME"))
@@ -402,10 +420,10 @@ var _ = Describe("Credentials Management", func() {
 			It("should fail when only username is set in environment", func() {
 				os.Setenv("RELISH_USERNAME", "partialuser@example.com")
 				os.Unsetenv("RELISH_PASSWORD")
-				
+
 				// This test behavior depends on keyring state
 				creds, err := getCredentials()
-				
+
 				if err != nil {
 					// Should mention password is missing
 					Expect(err.Error()).To(ContainSubstring("RELISH_PASSWORD"))
@@ -416,12 +434,12 @@ var _ = Describe("Credentials Management", func() {
 			})
 
 			It("should fail when only password is set in environment", func() {
-				os.Unsetenv("RELISH_USERNAME") 
+				os.Unsetenv("RELISH_USERNAME")
 				os.Setenv("RELISH_PASSWORD", "partialpassword")
-				
+
 				// This test behavior depends on keyring state
 				creds, err := getCredentials()
-				
+
 				if err != nil {
 					// Should mention username is missing
 					Expect(err.Error()).To(ContainSubstring("RELISH_USERNAME"))
@@ -475,7 +493,7 @@ var _ = Describe("Edge Cases and Error Handling", func() {
 			config := &Config{
 				PageTimeout: time.Hour * 24, // 24 hours
 			}
-			
+
 			notifier := NewNotifier(config, &Credentials{}, setupLogger(1)) // -v for info level
 			Expect(notifier).NotTo(BeNil())
 			Expect(notifier.config.PageTimeout).To(Equal(time.Hour * 24))
@@ -487,3 +505,4 @@ var _ = Describe("Edge Cases and Error Handling", func() {
 		})
 	})
 })
+
