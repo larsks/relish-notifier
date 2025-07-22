@@ -193,18 +193,29 @@ func (n *Notifier) Refresh() error {
 }
 
 func getCredentials() (*Credentials, error) {
+	var username, password string
+	
+	// Try keyring first
 	username, err := keyring.Get("relish-notifier", "EMAIL")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get username from keyring: %w", err)
+		// Keyring failed, try environment variables
+		username = os.Getenv("RELISH_USERNAME")
+		if username == "" {
+			return nil, fmt.Errorf("failed to get username from keyring (%w) and RELISH_USERNAME environment variable is not set", err)
+		}
 	}
 
-	password, err := keyring.Get("relish-notifier", "PASSWORD")
+	password, err = keyring.Get("relish-notifier", "PASSWORD")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get password from keyring: %w", err)
+		// Keyring failed, try environment variables
+		password = os.Getenv("RELISH_PASSWORD")
+		if password == "" {
+			return nil, fmt.Errorf("failed to get password from keyring (%w) and RELISH_PASSWORD environment variable is not set", err)
+		}
 	}
 
 	if username == "" || password == "" {
-		return nil, fmt.Errorf("missing credentials")
+		return nil, fmt.Errorf("missing credentials: both keyring and environment variables are empty")
 	}
 
 	return &Credentials{
@@ -243,6 +254,7 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:     "relish-notifier",
 		Short:   "Monitor Relish orders and send notifications",
+		Long:    "Monitor Relish orders and send notifications.\n\nCredentials are retrieved from the system keychain (service: relish-notifier, accounts: EMAIL/PASSWORD).\nIf keychain is unavailable, environment variables RELISH_USERNAME and RELISH_PASSWORD will be used as fallback.",
 		Version: version,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runNotifier(&config)
