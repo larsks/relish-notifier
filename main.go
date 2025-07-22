@@ -56,7 +56,7 @@ type Config struct {
 	Once        bool
 	PageTimeout time.Duration
 	Command     string
-	LogLevel    string
+	Verbose     int
 }
 
 type Credentials struct {
@@ -223,20 +223,16 @@ func getCredentials() (*Credentials, error) {
 	}, nil
 }
 
-func setupLogger(logLevel string) *slog.Logger {
+func setupLogger(verbose int) *slog.Logger {
 	var level slog.Level
 
-	switch strings.ToLower(logLevel) {
-	case "debug":
-		level = slog.LevelDebug
-	case "info":
-		level = slog.LevelInfo
-	case "warning", "warn":
-		level = slog.LevelWarn
-	case "error":
-		level = slog.LevelError
-	default:
-		level = slog.LevelWarn
+	switch {
+	case verbose <= 0:
+		level = slog.LevelWarn // Default: warning level
+	case verbose == 1:
+		level = slog.LevelInfo // -v: info level
+	case verbose >= 2:
+		level = slog.LevelDebug // -vv or more: debug level
 	}
 
 	opts := &slog.HandlerOptions{
@@ -266,7 +262,7 @@ func main() {
 	rootCmd.Flags().BoolVar(&config.Once, "once", false, "Check once and exit")
 	rootCmd.Flags().DurationVarP(&config.PageTimeout, "page-timeout", "t", 10*time.Second, "Set page timeout")
 	rootCmd.Flags().StringVarP(&config.Command, "command", "c", "", "Run this command when your order has arrived")
-	rootCmd.Flags().StringVarP(&config.LogLevel, "log-level", "v", "warning", "Log level (debug, info, warning, error)")
+	rootCmd.Flags().CountVarP(&config.Verbose, "verbose", "v", "Increase verbosity (-v: info, -vv: debug)")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -275,7 +271,7 @@ func main() {
 }
 
 func runNotifier(config *Config) error {
-	logger := setupLogger(config.LogLevel)
+	logger := setupLogger(config.Verbose)
 
 	// Get credentials
 	credentials, err := getCredentials()

@@ -54,56 +54,52 @@ var _ = Describe("OrderStatus", func() {
 
 var _ = Describe("Logger Setup", func() {
 	Describe("setupLogger function", func() {
-		Context("with valid log levels", func() {
+		Context("with verbose counter", func() {
 			DescribeTable("should create logger with correct level",
-				func(logLevel string, expectedLevel slog.Level) {
-					logger := setupLogger(logLevel)
+				func(verbose int, expectedLevel slog.Level) {
+					logger := setupLogger(verbose)
 					Expect(logger).NotTo(BeNil())
 					Expect(logger.Enabled(nil, expectedLevel)).To(BeTrue())
 				},
-				Entry("debug level", "debug", slog.LevelDebug),
-				Entry("info level", "info", slog.LevelInfo),
-				Entry("warning level", "warning", slog.LevelWarn),
-				Entry("warn level alias", "warn", slog.LevelWarn),
-				Entry("error level", "error", slog.LevelError),
+				Entry("default (0): warn level", 0, slog.LevelWarn),
+				Entry("-v (1): info level", 1, slog.LevelInfo),
+				Entry("-vv (2): debug level", 2, slog.LevelDebug),
+				Entry("-vvv (3): debug level", 3, slog.LevelDebug),
+				Entry("high count (10): debug level", 10, slog.LevelDebug),
 			)
 		})
 
-		Context("with case variations", func() {
-			DescribeTable("should handle case insensitive input",
-				func(logLevel string, expectedLevel slog.Level) {
-					logger := setupLogger(logLevel)
-					Expect(logger).NotTo(BeNil())
-					Expect(logger.Enabled(nil, expectedLevel)).To(BeTrue())
-				},
-				Entry("uppercase DEBUG", "DEBUG", slog.LevelDebug),
-				Entry("mixed case InFo", "InFo", slog.LevelInfo),
-				Entry("uppercase ERROR", "ERROR", slog.LevelError),
-			)
-		})
+		Context("with level filtering", func() {
+			It("should filter debug messages at warn level (default)", func() {
+				logger := setupLogger(0)
+				Expect(logger.Enabled(nil, slog.LevelWarn)).To(BeTrue())
+				Expect(logger.Enabled(nil, slog.LevelDebug)).To(BeFalse())
+				Expect(logger.Enabled(nil, slog.LevelInfo)).To(BeFalse())
+			})
 
-		Context("with invalid log levels", func() {
-			DescribeTable("should default to warn level",
-				func(invalidLevel string) {
-					logger := setupLogger(invalidLevel)
-					Expect(logger).NotTo(BeNil())
-					Expect(logger.Enabled(nil, slog.LevelWarn)).To(BeTrue())
-					// Debug should be disabled at warn level
-					Expect(logger.Enabled(nil, slog.LevelDebug)).To(BeFalse())
-				},
-				Entry("invalid string", "invalid"),
-				Entry("empty string", ""),
-				Entry("numeric string", "123"),
-				Entry("special chars", "!@#$"),
-			)
+			It("should allow info and above at info level (-v)", func() {
+				logger := setupLogger(1)
+				Expect(logger.Enabled(nil, slog.LevelInfo)).To(BeTrue())
+				Expect(logger.Enabled(nil, slog.LevelWarn)).To(BeTrue())
+				Expect(logger.Enabled(nil, slog.LevelError)).To(BeTrue())
+				Expect(logger.Enabled(nil, slog.LevelDebug)).To(BeFalse())
+			})
+
+			It("should allow all levels at debug level (-vv)", func() {
+				logger := setupLogger(2)
+				Expect(logger.Enabled(nil, slog.LevelDebug)).To(BeTrue())
+				Expect(logger.Enabled(nil, slog.LevelInfo)).To(BeTrue())
+				Expect(logger.Enabled(nil, slog.LevelWarn)).To(BeTrue())
+				Expect(logger.Enabled(nil, slog.LevelError)).To(BeTrue())
+			})
 		})
 
 		It("should create a logger that actually logs", func() {
 			// Create a buffer to capture output
 			buffer := gbytes.NewBuffer()
 			
-			// Create logger with info level
-			logger := setupLogger("info")
+			// Create logger with info level (-v)
+			logger := setupLogger(1)
 			
 			// Note: This is a simplified test since we can't easily redirect slog output
 			// In a real scenario, you might use a custom handler for testing
@@ -131,7 +127,7 @@ var _ = Describe("Notifier", func() {
 			Once:        true,
 			PageTimeout: 30 * time.Second,
 			Command:     "echo test",
-			LogLevel:    "debug",
+			Verbose:     2, // -vv for debug level
 		}
 		
 		credentials = &Credentials{
@@ -139,7 +135,7 @@ var _ = Describe("Notifier", func() {
 			Password: "testpassword",
 		}
 		
-		logger = setupLogger("debug")
+		logger = setupLogger(2) // -vv for debug level
 	})
 
 	Describe("NewNotifier constructor", func() {
@@ -180,7 +176,7 @@ var _ = Describe("Configuration", func() {
 			Expect(config.Once).To(BeFalse())
 			Expect(config.PageTimeout).To(Equal(time.Duration(0)))
 			Expect(config.Command).To(Equal(""))
-			Expect(config.LogLevel).To(Equal(""))
+			Expect(config.Verbose).To(Equal(0)) // Default verbose level
 		})
 	})
 
@@ -188,7 +184,7 @@ var _ = Describe("Configuration", func() {
 		It("should correctly handle headless configuration", func() {
 			// Test that headless setting is properly passed to launcher
 			config := &Config{Headless: true}
-			logger := setupLogger("debug")
+			logger := setupLogger(2) // -vv for debug level
 			notifier := NewNotifier(config, &Credentials{}, logger)
 			
 			Expect(notifier.config.Headless).To(BeTrue())
@@ -243,7 +239,7 @@ var _ = Describe("Application Integration", func() {
 		})
 
 		It("should log at the correct level", func() {
-			logger := setupLogger("info")
+			logger := setupLogger(1) // -v for info level
 
 			// Log messages at different levels
 			logger.Debug("debug message")    // Should not appear
@@ -458,12 +454,19 @@ var _ = Describe("Edge Cases and Error Handling", func() {
 	})
 
 	Describe("setupLogger edge cases", func() {
-		It("should handle very long log level strings", func() {
-			longLevel := strings.Repeat("debug", 1000)
-			logger := setupLogger(longLevel)
+		It("should handle very high verbose counts", func() {
+			logger := setupLogger(999)
 			Expect(logger).NotTo(BeNil())
-			// Should default to warn for invalid input
+			// Should still be debug level for any count >= 2
+			Expect(logger.Enabled(nil, slog.LevelDebug)).To(BeTrue())
+		})
+
+		It("should handle negative verbose counts", func() {
+			logger := setupLogger(-1)
+			Expect(logger).NotTo(BeNil())
+			// Should default to warn level for negative values
 			Expect(logger.Enabled(nil, slog.LevelWarn)).To(BeTrue())
+			Expect(logger.Enabled(nil, slog.LevelInfo)).To(BeFalse())
 		})
 	})
 
@@ -473,13 +476,13 @@ var _ = Describe("Edge Cases and Error Handling", func() {
 				PageTimeout: time.Hour * 24, // 24 hours
 			}
 			
-			notifier := NewNotifier(config, &Credentials{}, setupLogger("info"))
+			notifier := NewNotifier(config, &Credentials{}, setupLogger(1)) // -v for info level
 			Expect(notifier).NotTo(BeNil())
 			Expect(notifier.config.PageTimeout).To(Equal(time.Hour * 24))
 		})
 
 		It("should handle empty login URL correctly", func() {
-			notifier := NewNotifier(&Config{}, &Credentials{}, setupLogger("info"))
+			notifier := NewNotifier(&Config{}, &Credentials{}, setupLogger(1)) // -v for info level
 			Expect(notifier.loginUrl).To(Equal(defaultLoginURL))
 		})
 	})
