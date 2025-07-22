@@ -1,0 +1,169 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Run tests
+        run: make test
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            suffix: linux-amd64
+          - goos: linux
+            goarch: arm64
+            suffix: linux-arm64
+          - goos: linux
+            goarch: arm
+            goarm: "7"
+            suffix: linux-armv7
+          - goos: darwin
+            goarch: amd64
+            suffix: darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            suffix: darwin-arm64
+          - goos: windows
+            goarch: amd64
+            suffix: windows-amd64
+            ext: .exe
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Determine version
+        id: semver
+        uses: ietf-tools/semver-action@v1
+        with:
+          token: ${{ github.token }}
+          branch: main
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+          VERSION: ${{ steps.semver.outputs.next }}
+        run: |
+          make BINARY_NAME=relish-notifier-${{ matrix.suffix }}${{ matrix.ext }} build
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: relish-notifier-${{ matrix.suffix }}
+          path: relish-notifier-${{ matrix.suffix }}${{ matrix.ext }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: semver
+        uses: ietf-tools/semver-action@v1
+        with:
+          token: ${{ github.token }}
+          branch: main
+          fallbackTag: v0.0.0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Move artifacts to root
+        run: |
+          find artifacts -type f -name "relish-notifier-*" -exec mv {} . \;
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.semver.outputs.next }}
+          name: Release ${{ steps.semver.outputs.next }}
+          draft: false
+          prerelease: false
+          files: |
+            relish-notifier-linux-amd64
+            relish-notifier-linux-arm64
+            relish-notifier-linux-armv7
+            relish-notifier-darwin-amd64
+            relish-notifier-darwin-arm64
+            relish-notifier-windows-amd64.exe
+          body: |
+            ## Changes
+            
+            Automatically generated release for commit ${{ github.sha }}
+            
+            ## Installation
+            
+            Download the appropriate binary for your platform and make it executable:
+            
+            ```bash
+            # Linux x64
+            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.semver.outputs.next }}/relish-notifier-linux-amd64
+            chmod +x relish-notifier-linux-amd64
+            sudo mv relish-notifier-linux-amd64 /usr/local/bin/relish-notifier
+            
+            # macOS (Intel)
+            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.semver.outputs.next }}/relish-notifier-darwin-amd64
+            chmod +x relish-notifier-darwin-amd64
+            sudo mv relish-notifier-darwin-amd64 /usr/local/bin/relish-notifier
+            
+            # macOS (Apple Silicon)
+            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.semver.outputs.next }}/relish-notifier-darwin-arm64
+            chmod +x relish-notifier-darwin-arm64
+            sudo mv relish-notifier-darwin-arm64 /usr/local/bin/relish-notifier
+            ```
