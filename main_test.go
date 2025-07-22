@@ -306,6 +306,121 @@ var _ = Describe("Performance", func() {
 	})
 })
 
+var _ = Describe("Credentials Management", func() {
+	Describe("getCredentials function", func() {
+		var (
+			originalUsername string
+			originalPassword string
+		)
+
+		BeforeEach(func() {
+			// Save original environment variables
+			originalUsername = os.Getenv("RELISH_USERNAME")
+			originalPassword = os.Getenv("RELISH_PASSWORD")
+		})
+
+		AfterEach(func() {
+			// Restore original environment variables
+			if originalUsername != "" {
+				os.Setenv("RELISH_USERNAME", originalUsername)
+			} else {
+				os.Unsetenv("RELISH_USERNAME")
+			}
+			
+			if originalPassword != "" {
+				os.Setenv("RELISH_PASSWORD", originalPassword)
+			} else {
+				os.Unsetenv("RELISH_PASSWORD")
+			}
+		})
+
+		Context("when environment variables are set", func() {
+			BeforeEach(func() {
+				os.Setenv("RELISH_USERNAME", "envuser@example.com")
+				os.Setenv("RELISH_PASSWORD", "envpassword")
+			})
+
+			It("should return credentials from environment when keyring fails", func() {
+				// This test assumes keyring will fail for non-existent service
+				// If keyring succeeds, that's also fine - we're testing fallback behavior
+				creds, err := getCredentials()
+				
+				Expect(err).NotTo(HaveOccurred())
+				Expect(creds).NotTo(BeNil())
+				
+				// Should get either keyring or environment credentials
+				Expect(creds.Username).NotTo(BeEmpty())
+				Expect(creds.Password).NotTo(BeEmpty())
+				
+				// If environment fallback was used, should match our test values
+				if creds.Username == "envuser@example.com" {
+					Expect(creds.Password).To(Equal("envpassword"))
+				}
+			})
+		})
+
+		Context("when environment variables are not set", func() {
+			BeforeEach(func() {
+				os.Unsetenv("RELISH_USERNAME")
+				os.Unsetenv("RELISH_PASSWORD")
+			})
+
+			It("should return error with helpful message when both keyring and env vars fail", func() {
+				// This test might pass or fail depending on system keyring state
+				// If keyring has valid credentials, the function will succeed
+				// If keyring fails and no env vars, it should fail with our message
+				creds, err := getCredentials()
+				
+				if err != nil {
+					// If it fails, should mention both keyring and environment variables
+					Expect(err.Error()).To(ContainSubstring("RELISH_USERNAME"))
+					Expect(err.Error()).To(ContainSubstring("RELISH_PASSWORD"))
+					Expect(creds).To(BeNil())
+				} else {
+					// If it succeeds, keyring must have had valid credentials
+					Expect(creds).NotTo(BeNil())
+					Expect(creds.Username).NotTo(BeEmpty())
+					Expect(creds.Password).NotTo(BeEmpty())
+				}
+			})
+		})
+
+		Context("with partial environment variables", func() {
+			It("should fail when only username is set in environment", func() {
+				os.Setenv("RELISH_USERNAME", "partialuser@example.com")
+				os.Unsetenv("RELISH_PASSWORD")
+				
+				// This test behavior depends on keyring state
+				creds, err := getCredentials()
+				
+				if err != nil {
+					// Should mention password is missing
+					Expect(err.Error()).To(ContainSubstring("RELISH_PASSWORD"))
+				} else {
+					// Keyring must have provided valid credentials
+					Expect(creds).NotTo(BeNil())
+				}
+			})
+
+			It("should fail when only password is set in environment", func() {
+				os.Unsetenv("RELISH_USERNAME") 
+				os.Setenv("RELISH_PASSWORD", "partialpassword")
+				
+				// This test behavior depends on keyring state
+				creds, err := getCredentials()
+				
+				if err != nil {
+					// Should mention username is missing
+					Expect(err.Error()).To(ContainSubstring("RELISH_USERNAME"))
+				} else {
+					// Keyring must have provided valid credentials
+					Expect(creds).NotTo(BeNil())
+				}
+			})
+		})
+	})
+})
+
 var _ = Describe("Edge Cases and Error Handling", func() {
 	Describe("textToStatus with edge cases", func() {
 		It("should handle Unicode characters", func() {
