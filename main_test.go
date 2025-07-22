@@ -403,9 +403,10 @@ var _ = Describe("Credentials Management", func() {
 				creds, err := getCredentials()
 
 				if err != nil {
-					// If it fails, should mention both keyring and environment variables
+					// If it fails, should mention keyring failure and RELISH_USERNAME
+					// Note: function returns early on username failure, so only RELISH_USERNAME is mentioned
 					Expect(err.Error()).To(ContainSubstring("RELISH_USERNAME"))
-					Expect(err.Error()).To(ContainSubstring("RELISH_PASSWORD"))
+					Expect(err.Error()).To(ContainSubstring("keyring"))
 					Expect(creds).To(BeNil())
 				} else {
 					// If it succeeds, keyring must have had valid credentials
