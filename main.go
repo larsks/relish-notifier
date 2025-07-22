@@ -50,10 +50,12 @@ const (
 
 const defaultLoginURL string = "https://relish.ezcater.com/schedule"
 
+// String converts an OrderStatus value to its string representation
 func (os OrderStatus) String() string {
 	return string(os)
 }
 
+// textToStatus converts a string to the corresponding OrderStatus enum value
 func textToStatus(text string) OrderStatus {
 	switch text {
 	case string(OrderStatusPlaced):
@@ -91,6 +93,7 @@ type Notifier struct {
 	loginUrl    string
 }
 
+// NewNotifier creates a new Notifier instance with the provided configuration, credentials, and logger
 func NewNotifier(config *Config, credentials *Credentials, logger *slog.Logger) *Notifier {
 	return &Notifier{
 		config:      config,
@@ -100,6 +103,7 @@ func NewNotifier(config *Config, credentials *Credentials, logger *slog.Logger) 
 	}
 }
 
+// initializeBrowser sets up the browser instance with stealth options and configures the page
 func (n *Notifier) initializeBrowser() error {
 	n.logger.Debug("initializing browser")
 
@@ -134,12 +138,14 @@ func (n *Notifier) initializeBrowser() error {
 	return nil
 }
 
+// Close shuts down the browser instance if it exists
 func (n *Notifier) Close() {
 	if n.browser != nil {
 		n.browser.MustClose()
 	}
 }
 
+// Login navigates to the Relish login page and authenticates using stored credentials
 func (n *Notifier) Login() error {
 	n.logger.Info("logging in")
 
@@ -160,6 +166,7 @@ func (n *Notifier) Login() error {
 	return nil
 }
 
+// waitAndSubmit waits for a form field, fills it with data, then clicks the specified button
 func (n *Notifier) waitAndSubmit(fieldSelector, buttonSelector, data string) error {
 	n.logger.Debug("waiting for element before clicking", "field", fieldSelector, "button", buttonSelector)
 
@@ -181,6 +188,7 @@ func (n *Notifier) waitAndSubmit(fieldSelector, buttonSelector, data string) err
 	return nil
 }
 
+// CheckOrderStatus scrapes the order status from the Relish website and returns the parsed status
 func (n *Notifier) CheckOrderStatus() (OrderStatus, error) {
 	n.logger.Debug("checking order status")
 
@@ -204,11 +212,13 @@ func (n *Notifier) CheckOrderStatus() (OrderStatus, error) {
 	return status, nil
 }
 
+// Refresh reloads the current page in the browser
 func (n *Notifier) Refresh() error {
 	n.logger.Debug("reloading page")
 	return n.page.Reload()
 }
 
+// getCredentials retrieves login credentials from the system keychain or environment variables
 func getCredentials() (*Credentials, error) {
 	var username, password string
 
@@ -241,6 +251,7 @@ func getCredentials() (*Credentials, error) {
 	}, nil
 }
 
+// setupLogger creates a structured logger with the appropriate log level based on verbosity
 func setupLogger(verbose int) *slog.Logger {
 	var level slog.Level
 
@@ -261,6 +272,7 @@ func setupLogger(verbose int) *slog.Logger {
 	return slog.New(handler)
 }
 
+// main sets up the CLI interface and executes the root command
 func main() {
 	var config Config
 
@@ -288,6 +300,7 @@ func main() {
 	}
 }
 
+// runNotifier initializes the notifier, logs in, and runs the main monitoring loop
 func runNotifier(config *Config) error {
 	logger := setupLogger(config.Verbose)
 

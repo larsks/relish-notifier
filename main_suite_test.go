@@ -29,4 +29,3 @@ func TestMain(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Relish Notifier Suite")
 }
-
